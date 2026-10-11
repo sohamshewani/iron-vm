@@ -1,0 +1,166 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.ironvm</groupId>
+    <artifactId>iron-vm</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <name>iron-vm</name>
+    <description>Production-grade Java Virtual Machine with native optimization support</description>
+
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        
+        <!-- JUnit 5 Version -->
+        <junit.version>5.10.0</junit.version>
+        
+        <!-- Native compilation flags -->
+        <native.compiler.opts>-O3 -Wall -Wextra</native.compiler.opts>
+    </properties>
+
+    <dependencies>
+        <!-- JUnit 5 API for testing -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Compiler Plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+                <configuration>
+                    <source>${maven.compiler.source}</source>
+                    <target>${maven.compiler.target}</target>
+                </configuration>
+            </plugin>
+
+            <!-- Surefire Plugin for running tests -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.1.2</version>
+            </plugin>
+
+            <!-- AntRun Plugin to safely execute all, build, test, clean, and benchmark targets -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <!-- CLEAN TARGET -->
+                    <execution>
+                        <id>clean-target</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <echo message="[iron-vm] Executing custom clean..."/>
+                                <delete dir="${project.build.directory}" quiet="true"/>
+                                <delete dir="native/build" quiet="true"/>
+                                <delete dir="benchmark/build" quiet="true"/>
+                            </target>
+                        </configuration>
+                    </execution>
+
+                    <!-- BUILD TARGET -->
+                    <execution>
+                        <id>build-target</id>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <echo message="[iron-vm] Executing build target with flags: ${native.compiler.opts}"/>
+                                <mkdir dir="${project.build.directory}"/>
+                                
+                                <!-- Conditionally compile native code if 'native' directory exists -->
+                                <available file="native" type="dir" property="native.dir.exists"/>
+                                <antcall target="compile-native"/>
+                            </target>
+                        </configuration>
+                    </execution>
+
+                    <!-- TEST TARGET -->
+                    <execution>
+                        <id>test-target</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <echo message="[iron-vm] Executing test target..."/>
+                                <available file="src/test" type="dir" property="test.dir.exists"/>
+                                <antcall target="run-tests"/>
+                            </target>
+                        </configuration>
+                    </execution>
+
+                    <!-- BENCHMARK TARGET -->
+                    <execution>
+                        <id>benchmark-target</id>
+                        <phase>integration-test</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <echo message="[iron-vm] Executing benchmark target..."/>
+                                <available file="benchmark" type="dir" property="bench.dir.exists"/>
+                                <antcall target="run-benchmarks"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>all</id>
+            <build>
+                <defaultGoal>clean compile test integration-test</defaultGoal>
+            </build>
+        </profile>
+    </profiles>
+
+    <!-- Internal Ant targets for safe conditional execution -->
+    <project>
+        <!-- This section is appended logically inside antrun execution scopes -->
+        <target name="compile-native" if="native.dir.exists">
+            <mkdir dir="native/build"/>
+            <echo message="Compiling native components with options: ${native.compiler.opts}"/>
+            <!-- Example: gcc/clang hook if Makefile exists -->
+            <exec executable="make" dir="native" failonerror="false">
+                <arg value="CFLAGS=${native.compiler.opts}"/>
+            </exec>
+        </target>
+
+        <target name="run-tests" if="test.dir.exists">
+            <echo message="Test directory verified. Surefire will process tests."/>
+        </target>
+
+        <target name="run-benchmarks" if="bench.dir.exists">
+            <mkdir dir="benchmark/build"/>
